@@ -21,17 +21,15 @@ import {
 
 import {
 	computeTokenPosition,
-	getSuggestions,
 	getSuggestionsForParseTree, ImportHeaderContext,
-	ImportListContext,
 	KotlinLexer,
-	KotlinParser, SymbolTableVisitor
+	KotlinParser
 } from 'toy-kotlin-language-server'
 import {CharStreams, CommonTokenStream} from "antlr4ts";
-import {SymbolTable} from "antlr4-c3";
 import * as pathFunctions from "path";
 import * as fs from "fs";
 import fileUriToPath = require("file-uri-to-path");
+import {SymbolTableVisitor} from "./go-to-definition";
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -147,7 +145,6 @@ function ensurePath(path: string) {
 	}
 }
 
-
 // This handler provides the initial list of the completion items.
 connection.onCompletion(
 	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
@@ -162,7 +159,7 @@ connection.onCompletion(
 		let parseTree = parser.kotlinFile();
 		let imports = parseTree?.preamble()?.importList()?.importHeader();
 
-		let symbolTableVisitor = new SymbolTableVisitor();
+		let symbolTableVisitor = new SymbolTableVisitor(uri);
 		if(imports) {
 			processImports(imports, uri, symbolTableVisitor);
 		}

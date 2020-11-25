@@ -1,14 +1,12 @@
-# LSP Example
+# LSP Go To Definition
 
-Heavily documented sample code for https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
+Sample code for the article, Go To Definition in the Language Server Protocol
 
 ## Functionality
 
-This Language Server works for plain text file. It has the following language features:
+This Language Server works for a subset of the Kotlin, saved in .mykt files. It has the following language features:
 - Completions
-- Diagnostics regenerated on each file change or configuration change
-
-It also includes an End-to-End test.
+- Go To Definition
 
 ## Structure
 

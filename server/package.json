@@ -1,6 +1,6 @@
 {
-	"name": "antlr4-c3-vscode-tutorial",
-	"description": "Example implementation of a code completion using antlr4-c3.",
+	"name": "my-kotlin-go-to-definition-server",
+	"description": "Server component of Go To Definition sample.",
 	"version": "1.0.0",
 	"author": "Strumenta",
 	"license": "MIT",
@@ -9,7 +9,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/strumenta/"
+		"url": "https://github.com/Strumenta/article-lsp-go-to-definition.git"
 	},
 	"dependencies": {
 		"@types/node": "^14.11.5",
