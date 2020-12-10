@@ -29,7 +29,8 @@ import {CharStreams, CommonTokenStream} from "antlr4ts";
 import * as pathFunctions from "path";
 import * as fs from "fs";
 import fileUriToPath = require("file-uri-to-path");
-import {SymbolTableVisitor} from "./go-to-definition";
+import {findDeclaration, SymbolTableVisitor} from "./go-to-definition";
+import {VariableSymbol} from "antlr4-c3";
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -65,7 +66,8 @@ connection.onInitialize((params: InitializeParams) => {
 			// Tell the client that this server supports code completion.
 			completionProvider: {
 				resolveProvider: true
-			}
+			},
+			definitionProvider: true
 		}
 	};
 	if (hasWorkspaceFolderCapability) {
@@ -90,28 +92,35 @@ connection.onInitialized(() => {
 	}
 });
 
-function computeBasePath(uri: string) {
-	let basePath = ensurePath(uri);
-	let lastSep = basePath.lastIndexOf(pathFunctions.sep);
+documents.onDidChangeContent(change => {
+	markForReparsing(change.document);
+});
+
+function computeBaseUri(uri: string) {
+	let lastSep = uri.lastIndexOf("/");
 	if (lastSep >= 0) {
-		basePath = basePath.substring(0, lastSep + 1);
+		uri = uri.substring(0, lastSep + 1);
 	} else {
-		basePath = "";
+		uri = "";
 	}
-	return basePath;
+	return uri;
 }
 
-function processImports(imports: ImportHeaderContext[], uri: string, symbolTableVisitor: SymbolTableVisitor) {
-	let basePath = computeBasePath(uri);
+function processImports(imports: ImportHeaderContext[], symbolTableVisitor: SymbolTableVisitor) {
+	let uri = symbolTableVisitor.documentUri;
+	let baseUri = computeBaseUri(uri);
+	let basePath = ensurePath(baseUri);
 	for(let i in imports) {
 		const filename = imports[i].identifier().text + ".mykt";
 		const filepath = basePath + filename;
 		if (fs.existsSync(filepath)) {
+			symbolTableVisitor.documentUri = baseUri + filename;
 			processImport(filepath, symbolTableVisitor);
 		} else {
 			connection.window.showErrorMessage("Imported file not found: " + filepath);
 		}
 	}
+	symbolTableVisitor.documentUri = uri;
 }
 
 function processImport(path: string, symbolTableVisitor: SymbolTableVisitor) {
@@ -145,6 +154,50 @@ function ensurePath(path: string) {
 	}
 }
 
+connection.onDefinition((params) => {
+	let uri = params.textDocument.uri;
+	let document = documents.get(uri);
+	let {parser, parseTree, visitor} = ensureParsed(document);
+	let pos = params.position;
+	let position = computeTokenPosition(parseTree, parser.inputStream,
+		{ line: pos.line + 1, column: pos.character });
+	if(position && position.context) {
+		let declaration = findDeclaration(position.context, VariableSymbol, visitor.symbolTable);
+		if(declaration && declaration.location) {
+			return declaration.location;
+		}
+	}
+	return undefined;
+});
+
+function markForReparsing(document: TextDocument) {
+	document["parser"] = undefined;
+	document["parseTree"] = undefined;
+	document["symbolTableVisitor"] = undefined;
+}
+
+function ensureParsed(document: TextDocument) {
+	if(document["parser"]) {
+		return { parser: document["parser"], parseTree: document["parseTree"], visitor: document["symbolTableVisitor"] };
+	}
+	let input = CharStreams.fromString(document.getText());
+	let lexer = new KotlinLexer(input);
+	let parser = new KotlinParser(new CommonTokenStream(lexer));
+	let parseTree = parser.kotlinFile();
+	let imports = parseTree?.preamble()?.importList()?.importHeader();
+
+	let symbolTableVisitor = new SymbolTableVisitor(document.uri);
+	if(imports) {
+		processImports(imports, symbolTableVisitor);
+	}
+	symbolTableVisitor.visit(parseTree);
+
+	document["parser"] = parser;
+	document["parseTree"] = parseTree;
+	document["symbolTableVisitor"] = symbolTableVisitor;
+	return {parser, parseTree, visitor: symbolTableVisitor};
+}
+
 // This handler provides the initial list of the completion items.
 connection.onCompletion(
 	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
@@ -152,21 +205,15 @@ connection.onCompletion(
 		let document = documents.get(uri);
 		let pos = _textDocumentPosition.position;
 
-		let input = CharStreams.fromString(document.getText());
-		let lexer = new KotlinLexer(input);
-		let parser = new KotlinParser(new CommonTokenStream(lexer));
+		let {parser, parseTree, visitor} = ensureParsed(document);
 
-		let parseTree = parser.kotlinFile();
-		let imports = parseTree?.preamble()?.importList()?.importHeader();
-
-		let symbolTableVisitor = new SymbolTableVisitor(uri);
-		if(imports) {
-			processImports(imports, uri, symbolTableVisitor);
+		let position = computeTokenPosition(
+			parseTree, parser.inputStream, { line: pos.line + 1, column: pos.character }, [ KotlinParser.Identifier ]);
+		if(!position) {
+			return [];
 		}
-
-		let suggestions = getSuggestionsForParseTree(parser, parseTree, symbolTableVisitor,
-			{ line: pos.line + 1, column: pos.character - 1 },
-			computeTokenPosition);
+		let suggestions = getSuggestionsForParseTree(
+			parser, parseTree, () => visitor.symbolTable, position);
 		return suggestions.map(s => {
 			return {
 				label: s,

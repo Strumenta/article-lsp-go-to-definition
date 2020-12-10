@@ -2,19 +2,18 @@ import {SymbolTableVisitor as BaseVisitor} from "toy-kotlin-language-server";
 import {ParseTree, TerminalNode} from "antlr4ts/tree";
 import {ParserRuleContext} from "antlr4ts";
 import {RoutineSymbol, ScopedSymbol, SymbolTable, VariableSymbol} from "antlr4-c3";
-import { LocationLink, Range } from "vscode-languageserver";
+import { LocationLink} from "vscode-languageserver";
 import {DocumentUri} from "vscode-languageserver-textdocument";
 import {
     FunctionDeclarationContext,
     VariableDeclarationContext
 } from "toy-kotlin-language-server/src/parser/KotlinParser";
+import {Symbol} from "antlr4-c3/out/src/SymbolTable";
 
 export class SymbolTableVisitor extends BaseVisitor {
 
-    protected declarationName: ParseTree;
-
     constructor(public documentUri: DocumentUri,
-                symbolTable = new SymbolTable("", {}),
+                public symbolTable = new SymbolTable("", {}),
                 scope = symbolTable.addNewSymbolOfType(ScopedSymbol, undefined)) {
         super(symbolTable, scope);
     }
@@ -26,13 +25,16 @@ export class SymbolTableVisitor extends BaseVisitor {
     };
 
     visitFunctionDeclaration = (ctx: FunctionDeclarationContext) => {
-        this.declarationName = ctx.identifier();
-        return this.withScope(ctx, RoutineSymbol, [ctx.identifier().text], () => this.visitChildren(ctx));
+        let fname = ctx.identifier();
+        return this.withDeclaration(ctx, fname, RoutineSymbol, [fname.text],
+            () => this.visitChildren(ctx));
     };
 
-    protected withScope<T>(tree: ParseTree, type: { new(...args: any[]): ScopedSymbol }, args: any[], action: () => T): T {
-        return super.withScope(tree, type, args, () => {
-            this.registerDeclaration(this.scope, tree, this.declarationName);
+    protected withDeclaration<T>(
+        declaration: ParseTree, declarationName: ParseTree,
+        type: { new(...args: any[]): ScopedSymbol }, args: any[], action: () => T): T {
+        return this.withScope(declaration, type, args, () => {
+            this.registerDeclaration(this.scope, declaration, declarationName);
             return action();
         });
     }
@@ -58,4 +60,44 @@ export function getRange(parseTree: ParseTree) {
             character: endCharacter
         }
     };
+}
+
+export function findDeclaration<T extends Symbol>(
+    identifier: ParseTree, type: new (...args: any[]) => T, symbolTable: SymbolTable) {
+    const scope = getScope(identifier, symbolTable);
+    if(scope instanceof ScopedSymbol) { //Local scope
+        let decl = findDeclarationInScope(scope, identifier.text, type);
+        if(decl) {
+            return decl;
+        }
+    }
+    //Global scope
+    symbolTable.getSymbolsOfType(type).find(s => s.name == name);
+}
+
+function getScope(context: ParseTree, symbolTable: SymbolTable) {
+    if(!context) {
+        return undefined;
+    }
+    const scope = symbolTable.symbolWithContext(context);
+    if(scope) {
+        return scope;
+    } else {
+        return getScope(context.parent, symbolTable);
+    }
+}
+
+function findDeclarationInScope<T extends Symbol>(scope: ScopedSymbol, name: string, type: new (...args: any[]) => T) {
+    let symbol = scope.getSymbolsOfType(type).find(s => s.name == name);
+    if(symbol) {
+        return symbol;
+    }
+    let parent = scope.parent;
+    while(parent && !(parent instanceof ScopedSymbol)) {
+        parent = parent.parent;
+    }
+    if(parent instanceof ScopedSymbol) {
+        return findDeclarationInScope(parent, name, type);
+    }
+    return undefined;
 }
