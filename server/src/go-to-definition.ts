@@ -2,7 +2,7 @@ import {SymbolTableVisitor as BaseVisitor} from "toy-kotlin-language-server";
 import {ParseTree, TerminalNode} from "antlr4ts/tree";
 import {ParserRuleContext} from "antlr4ts";
 import {RoutineSymbol, ScopedSymbol, SymbolTable, VariableSymbol} from "antlr4-c3";
-import { LocationLink} from "vscode-languageserver";
+import { LocationLink, DefinitionLink} from "vscode-languageserver";
 import {DocumentUri} from "vscode-languageserver-textdocument";
 import {
     FunctionDeclarationContext,
@@ -60,18 +60,18 @@ export function getRange(parseTree: ParseTree) {
     };
 }
 
-export function findDeclaration<T extends Symbol>(name: string, type: new (...args: any[]) => T, scope: Symbol) {
+export function findDeclaration(name: string, scope: Symbol) {
     while(scope && !(scope instanceof ScopedSymbol)) {
         scope = scope.parent;
     }
     if(!scope) {
         return undefined;
     }
-    let symbol = (scope as ScopedSymbol).getSymbolsOfType(type).find(s => s.name == name);
-    if(symbol) {
+    let symbol = (scope as ScopedSymbol).getSymbolsOfType(Symbol).find(s => s.name == name);
+    if(symbol && symbol.hasOwnProperty("location")) {
         return symbol;
     } else {
-        return findDeclaration(name, type, scope.parent);
+        return findDeclaration(name, scope.parent);
     }
 }
 

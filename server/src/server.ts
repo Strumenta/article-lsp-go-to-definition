@@ -163,7 +163,7 @@ connection.onDefinition((params) => {
 		{ line: pos.line + 1, column: pos.character });
 	if(position && position.context) {
 		const scope = getScope(position.context, visitor.symbolTable);
-		let declaration = findDeclaration(position.context.text, VariableSymbol, scope);
+		let declaration = findDeclaration(position.context.text, scope);
 		if(declaration && declaration.location) {
 			return {...declaration.location, originSelectionRange: getRange(position.context) };
 		}
