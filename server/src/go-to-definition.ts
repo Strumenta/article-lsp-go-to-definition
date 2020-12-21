@@ -19,8 +19,8 @@ export class SymbolTableVisitor extends BaseVisitor {
     }
 
     visitVariableDeclaration = (ctx: VariableDeclarationContext) => {
-        let varDecl = this.symbolTable.addNewSymbolOfType(VariableSymbol, this.scope, ctx.simpleIdentifier().text);
-        this.registerDeclaration(varDecl, ctx, ctx.simpleIdentifier());
+        let symbol = this.symbolTable.addNewSymbolOfType(VariableSymbol, this.scope, ctx.simpleIdentifier().text);
+        this.registerDeclaration(symbol, ctx, ctx.simpleIdentifier());
         return this.visitChildren(ctx);
     };
 
@@ -39,8 +39,8 @@ export class SymbolTableVisitor extends BaseVisitor {
         });
     }
 
-    protected registerDeclaration(declaration: any, tree: ParseTree, declarationName: ParseTree) {
-        declaration.location = LocationLink.create(this.documentUri, getRange(tree), getRange(declarationName));
+    protected registerDeclaration(symbol: any, tree: ParseTree, declarationName: ParseTree) {
+        symbol.location = LocationLink.create(this.documentUri, getRange(tree), getRange(declarationName));
     }
 }
 
@@ -55,27 +55,27 @@ export function getRange(parseTree: ParseTree) {
     let endCharacter = stop.charPositionInLine + stop.text.length;
     return {
         start: { line: start.line - 1, character: start.charPositionInLine },
-        end: {
-            line: stop.line - 1,
-            character: endCharacter
+        end: {   line: stop.line - 1,  character: endCharacter
         }
     };
 }
 
-export function findDeclaration<T extends Symbol>(
-    identifier: ParseTree, type: new (...args: any[]) => T, symbolTable: SymbolTable) {
-    const scope = getScope(identifier, symbolTable);
-    if(scope instanceof ScopedSymbol) { //Local scope
-        let decl = findDeclarationInScope(scope, identifier.text, type);
-        if(decl) {
-            return decl;
-        }
+export function findDeclaration<T extends Symbol>(name: string, type: new (...args: any[]) => T, scope: Symbol) {
+    while(scope && !(scope instanceof ScopedSymbol)) {
+        scope = scope.parent;
     }
-    //Global scope
-    symbolTable.getSymbolsOfType(type).find(s => s.name == name);
+    if(!scope) {
+        return undefined;
+    }
+    let symbol = (scope as ScopedSymbol).getSymbolsOfType(type).find(s => s.name == name);
+    if(symbol) {
+        return symbol;
+    } else {
+        return findDeclaration(name, type, scope.parent);
+    }
 }
 
-function getScope(context: ParseTree, symbolTable: SymbolTable) {
+export function getScope(context: ParseTree, symbolTable: SymbolTable) {
     if(!context) {
         return undefined;
     }
@@ -85,19 +85,4 @@ function getScope(context: ParseTree, symbolTable: SymbolTable) {
     } else {
         return getScope(context.parent, symbolTable);
     }
-}
-
-function findDeclarationInScope<T extends Symbol>(scope: ScopedSymbol, name: string, type: new (...args: any[]) => T) {
-    let symbol = scope.getSymbolsOfType(type).find(s => s.name == name);
-    if(symbol) {
-        return symbol;
-    }
-    let parent = scope.parent;
-    while(parent && !(parent instanceof ScopedSymbol)) {
-        parent = parent.parent;
-    }
-    if(parent instanceof ScopedSymbol) {
-        return findDeclarationInScope(parent, name, type);
-    }
-    return undefined;
 }

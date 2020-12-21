@@ -29,7 +29,7 @@ import {CharStreams, CommonTokenStream} from "antlr4ts";
 import * as pathFunctions from "path";
 import * as fs from "fs";
 import fileUriToPath = require("file-uri-to-path");
-import {findDeclaration, SymbolTableVisitor} from "./go-to-definition";
+import {findDeclaration, getRange, getScope, SymbolTableVisitor} from "./go-to-definition";
 import {VariableSymbol} from "antlr4-c3";
 
 // Create a connection for the server, using Node's IPC as a transport.
@@ -162,9 +162,10 @@ connection.onDefinition((params) => {
 	let position = computeTokenPosition(parseTree, parser.inputStream,
 		{ line: pos.line + 1, column: pos.character });
 	if(position && position.context) {
-		let declaration = findDeclaration(position.context, VariableSymbol, visitor.symbolTable);
+		const scope = getScope(position.context, visitor.symbolTable);
+		let declaration = findDeclaration(position.context.text, VariableSymbol, scope);
 		if(declaration && declaration.location) {
-			return declaration.location;
+			return {...declaration.location, originSelectionRange: getRange(position.context) };
 		}
 	}
 	return undefined;
