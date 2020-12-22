@@ -1,14 +1,13 @@
 import {SymbolTableVisitor as BaseVisitor} from "toy-kotlin-language-server";
 import {ParseTree, TerminalNode} from "antlr4ts/tree";
 import {ParserRuleContext} from "antlr4ts";
-import {RoutineSymbol, ScopedSymbol, SymbolTable, VariableSymbol} from "antlr4-c3";
-import { LocationLink, DefinitionLink} from "vscode-languageserver";
+import {RoutineSymbol, ScopedSymbol, SymbolTable, VariableSymbol, Symbol as BaseSymbol} from "antlr4-c3";
+import { LocationLink} from "vscode-languageserver";
 import {DocumentUri} from "vscode-languageserver-textdocument";
 import {
     FunctionDeclarationContext,
     VariableDeclarationContext
 } from "toy-kotlin-language-server/src/parser/KotlinParser";
-import {Symbol} from "antlr4-c3/out/src/SymbolTable";
 
 export class SymbolTableVisitor extends BaseVisitor {
 
@@ -19,13 +18,13 @@ export class SymbolTableVisitor extends BaseVisitor {
     }
 
     visitVariableDeclaration = (ctx: VariableDeclarationContext) => {
-        let symbol = this.symbolTable.addNewSymbolOfType(VariableSymbol, this.scope, ctx.simpleIdentifier().text);
+        const symbol = this.symbolTable.addNewSymbolOfType(VariableSymbol, this.scope, ctx.simpleIdentifier().text);
         this.registerDeclaration(symbol, ctx, ctx.simpleIdentifier());
         return this.visitChildren(ctx);
     };
 
     visitFunctionDeclaration = (ctx: FunctionDeclarationContext) => {
-        let fname = ctx.identifier();
+        const fname = ctx.identifier();
         return this.withDeclaration(ctx, fname, RoutineSymbol, [fname.text],
             () => this.visitChildren(ctx));
     };
@@ -52,7 +51,7 @@ export function getRange(parseTree: ParseTree) {
     } else if(parseTree instanceof TerminalNode) {
         start = stop = parseTree.symbol;
     }
-    let endCharacter = stop.charPositionInLine + stop.text.length;
+    const endCharacter = stop.charPositionInLine + stop.text.length;
     return {
         start: { line: start.line - 1, character: start.charPositionInLine },
         end: {   line: stop.line - 1,  character: endCharacter
@@ -60,14 +59,14 @@ export function getRange(parseTree: ParseTree) {
     };
 }
 
-export function findDeclaration(name: string, scope: Symbol) {
+export function findDeclaration(name: string, scope: BaseSymbol) {
     while(scope && !(scope instanceof ScopedSymbol)) {
         scope = scope.parent;
     }
     if(!scope) {
         return undefined;
     }
-    let symbol = (scope as ScopedSymbol).getSymbolsOfType(Symbol).find(s => s.name == name);
+    const symbol = (scope as ScopedSymbol).getSymbolsOfType(BaseSymbol).find(s => s.name == name);
     if(symbol && symbol.hasOwnProperty("location")) {
         return symbol;
     } else {
