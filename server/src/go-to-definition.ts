@@ -19,27 +19,27 @@ export class SymbolTableVisitor extends BaseVisitor {
 
     visitVariableDeclaration = (ctx: VariableDeclarationContext) => {
         const symbol = this.symbolTable.addNewSymbolOfType(VariableSymbol, this.scope, ctx.simpleIdentifier().text);
-        this.registerDeclaration(symbol, ctx, ctx.simpleIdentifier());
+        this.registerDefinition(symbol, ctx, ctx.simpleIdentifier());
         return this.visitChildren(ctx);
     };
 
     visitFunctionDeclaration = (ctx: FunctionDeclarationContext) => {
         const fname = ctx.identifier();
-        return this.withDeclaration(ctx, fname, RoutineSymbol, [fname.text],
+        return this.withDefinition(ctx, fname, RoutineSymbol, [fname.text],
             () => this.visitChildren(ctx));
     };
 
-    protected withDeclaration<T>(
-        declaration: ParseTree, declarationName: ParseTree,
+    protected withDefinition<T>(
+        definition: ParseTree, definitionName: ParseTree,
         type: { new(...args: any[]): ScopedSymbol }, args: any[], action: () => T): T {
-        return this.withScope(declaration, type, args, () => {
-            this.registerDeclaration(this.scope, declaration, declarationName);
+        return this.withScope(definition, type, args, () => {
+            this.registerDefinition(this.scope, definition, definitionName);
             return action();
         });
     }
 
-    protected registerDeclaration(symbol: any, tree: ParseTree, declarationName: ParseTree) {
-        symbol.location = LocationLink.create(this.documentUri, getRange(tree), getRange(declarationName));
+    protected registerDefinition(symbol: any, tree: ParseTree, definitionName: ParseTree) {
+        symbol.location = LocationLink.create(this.documentUri, getRange(tree), getRange(definitionName));
     }
 }
 
@@ -59,7 +59,7 @@ export function getRange(parseTree: ParseTree) {
     };
 }
 
-export function findDeclaration(name: string, scope: BaseSymbol) {
+export function findDefinition(name: string, scope: BaseSymbol) {
     while(scope && !(scope instanceof ScopedSymbol)) {
         scope = scope.parent;
     }
@@ -70,7 +70,7 @@ export function findDeclaration(name: string, scope: BaseSymbol) {
     if(symbol && symbol.hasOwnProperty("location")) {
         return symbol;
     } else {
-        return findDeclaration(name, scope.parent);
+        return findDefinition(name, scope.parent);
     }
 }
 

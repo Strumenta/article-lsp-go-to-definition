@@ -29,7 +29,7 @@ import {CharStreams, CommonTokenStream} from "antlr4ts";
 import * as pathFunctions from "path";
 import * as fs from "fs";
 import fileUriToPath = require("file-uri-to-path");
-import {findDeclaration, getRange, getScope, SymbolTableVisitor} from "./go-to-definition";
+import {findDefinition, getRange, getScope, SymbolTableVisitor} from "./go-to-definition";
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -85,8 +85,13 @@ connection.onInitialized(() => {
 	}
 });
 
+function reparse(document: TextDocument) {
+	markForReparsing(document);
+	ensureParsed(document);
+}
+
 documents.onDidChangeContent(change => {
-	markForReparsing(change.document);
+	reparse(change.document);
 });
 
 function computeBaseUri(uri: string) {
@@ -156,9 +161,9 @@ connection.onDefinition((params) => {
 		{ line: pos.line + 1, column: pos.character });
 	if(position && position.context) {
 		const scope = getScope(position.context, visitor.symbolTable);
-		const declaration = findDeclaration(position.context.text, scope);
-		if(declaration && declaration.location) {
-			return {...declaration.location, originSelectionRange: getRange(position.context) };
+		const definition = findDefinition(position.context.text, scope);
+		if(definition && definition.location) {
+			return {...definition.location, originSelectionRange: getRange(position.context) };
 		}
 	}
 	return undefined;
