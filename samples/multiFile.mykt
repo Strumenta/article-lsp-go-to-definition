@@ -1,7 +1,12 @@
 import variables
 
+var someOtherVariable
+
 fun foo() {
     val fooBar = 3;
-    val baz = fb //<-- Place the cursor here, just after the 'b', and press Ctrl + Space
-    val funny = sv //<-- or here as well, for a variable defined in another file
+    val baz = fb // <-- Place the cursor here, just after the 'b',
+                 // and press Ctrl + Space for autocompletion
+    val funny = someVariable // <-- or here as well, for a variable defined in another file.
+    // You may also Cmd/Ctrl + click on each variable name to go to its definition. If the cursor
+    // is on a name, F12 performs the same action.
 }

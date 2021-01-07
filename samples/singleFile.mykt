@@ -1,4 +1,11 @@
-fun foo() {
-    val fooBar = 3;
-    val baz = fb //<-- Place the cursor here, just after the 'b', and press Ctrl + Space
+val fooInGlobalScope = 42
+val aaa = 9
+
+fun outer() { //Enclosing function scope
+    val funBiz = "Happy!"
+    fun foo() { //Function scope
+        val fooBar = 3;
+        val baz = fb //<-- Place the cursor here, just after the 'b', and press Ctrl + Space
+        call()
+    }
 }
